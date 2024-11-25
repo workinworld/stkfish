@@ -13,11 +13,16 @@ let currentFen = "";
 let bestMove;
 let webSocketWrapper = null;
 let gameId = null;
-let isFirstMove = true;  // Flag to track the first move
-let isWhite = true;     // Flag to determine if the bot is playing white
+let isFirstMove = true;
+let isWhite = true;
+let timeLimitMs = 50; // Time limit for engine calculations in milliseconds
 
 function initializeChessEngine() {
     chessEngine = window.STOCKFISH();
+    // Set engine options for speed (optional, may not be supported by all versions)
+    chessEngine.postMessage("setoption name Skill Level value 10");
+    chessEngine.postMessage("setoption name Hash value 1");
+    chessEngine.postMessage("setoption name Threads value 1"); // Use only 1 thread for speed
 }
 
 function interceptWebSocket() {
@@ -31,30 +36,26 @@ function interceptWebSocket() {
                 let message = JSON.parse(event.data);
                 console.log(message);
 
-                // Extract game ID
                 if (message.type === "gameFull" && message.id) {
                     gameId = message.id;
                     isWhite = message.white.id === lichess.socket.settings.userId;
                     console.log("Game ID:", gameId);
                     console.log("Playing as white:", isWhite);
                 }
-                
-                // Handle game state updates
+
                 if (message.d && typeof message.d.fen === "string" && typeof message.v === "number") {
                     currentFen = message.d.fen;
                     let isWhitesTurn = message.v % 2 === 0;
                     currentFen += isWhitesTurn ? " w" : " b";
 
-                    // For the first move as white, play Nh3
                     if (isFirstMove && isWhite && isWhitesTurn) {
-                      makeFirstMove();
-                      isFirstMove = false;
+                        makeFirstMove();
+                        isFirstMove = false;
                     } else {
                         calculateMove();
                     }
                 }
 
-                // Detect game end and rematch/new opponent
                 if (message.type === "gameState" && message.status >= 30) {
                     handleGameEnd();
                 }
@@ -76,13 +77,21 @@ function makeFirstMove() {
 
 function calculateMove() {
     chessEngine.postMessage("position fen " + currentFen);
-    chessEngine.postMessage("go depth 3");
+    
+    // Set a time limit for the engine calculation
+    chessEngine.postMessage(`go depth 2 movetime ${timeLimitMs}`); // Depth 2 or Depth 3
+    // chessEngine.postMessage(`go depth 1`); // Use this for depth 1 for instant move
+
+    // You can also try using a very low depth like 1
+    // chessEngine.postMessage("go depth 1");
 }
 
 function setupChessEngineOnMessage() {
     chessEngine.onmessage = function (event) {
         if (event && event.includes("bestmove")) {
             bestMove = event.split(" ")[1];
+
+            // Send the move immediately
             webSocketWrapper.send(JSON.stringify({
                 t: "move",
                 d: { u: bestMove, b: 1, l: 10000, a: 1 }
@@ -95,9 +104,9 @@ function handleGameEnd() {
     console.log("Game ended, initiating rematch/new opponent...");
     // Option 1: Rematch
     // webSocketWrapper.send(JSON.stringify({ t: "rematch", d: gameId }));
-    
+
     // Option 2: New opponent
-    webSocketWrapper.send(JSON.stringify({t: 'challenge', d: { dest: 'auto', rated: !1, clock: { limit: 60, increment: 5, emerg: 30 } } }));
+    webSocketWrapper.send(JSON.stringify({ t: 'challenge', d: { dest: 'auto', rated: !1, clock: { limit: 60, increment: 5, emerg: 30 } } }));
 }
 
 initializeChessEngine();
