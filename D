@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Lichess Bot (stockfish8)
-// @description  Fully automated lichess bot
+// @description  Fully automated lichess bot - Aggressive Sacrificial Style
 // @author       Nuro
 // @match        *://lichess.org/*
 // @run-at       document-start
@@ -14,13 +14,20 @@ let bestMove;
 let webSocketWrapper = null;
 let gameId = null;
 let isWhite = true;
-let timeLimitMs = 100;  // Slightly increased time limit for slightly better analysis
+let timeLimitMs = 100;  // Time limit for move calculation
 
 function initializeChessEngine() {
     chessEngine = window.STOCKFISH();
-    // Set engine options for a balance between speed and analysis
-    chessEngine.postMessage("setoption name Skill Level value 5"); // Lower skill level might favor safer moves
-    chessEngine.postMessage("setoption name Hash value 16");      // Increase hash size for slightly better performance
+    // Set engine options for aggressive play
+    chessEngine.postMessage("setoption name Skill Level value 20"); // Max skill for deeper analysis but...
+    chessEngine.postMessage("setoption name Contempt value 100");    // Encourage sacrificing material, play for initiative
+    chessEngine.postMessage("setoption name Aggressiveness value 250");// Highly aggressive
+    chessEngine.postMessage("setoption name Style value 1");  //Let's make it play like the old Rybka back in the days.
+    chessEngine.postMessage("setoption name Pawn Value value 90"); //Decrease the value of pawns to be more disposable.
+    chessEngine.postMessage("setoption name Space value 70"); //Play more aggresively for space
+    chessEngine.postMessage("setoption name Mobility value 150"); //Prioritize mobility a lot to open games
+    chessEngine.postMessage("setoption name King Safety value 10");//Sacrifices are expected when attacking the king, ignore the safety of our king.
+    chessEngine.postMessage("setoption name Hash value 128");      // Increase hash size for better performance
     chessEngine.postMessage("setoption name Threads value 1");     // Use only 1 thread for speed
 }
 
@@ -63,9 +70,8 @@ function interceptWebSocket() {
 
 function calculateMove() {
     chessEngine.postMessage("position fen " + currentFen);
-    // Increased search depth if possible, balanced with time limits
-    chessEngine.postMessage(`go depth 3 movetime ${timeLimitMs}`); //Depth 3 would be ideal for more accurate moves
-    // chessEngine.postMessage(`go depth 1`); // Uncomment for depth 1 for immediate moves
+    // Aggressive play favors shallower search to some extent
+    chessEngine.postMessage(`go depth 4 movetime ${timeLimitMs}`); // Depth 4 to balance aggression and tactical awareness
 }
 
 function setupChessEngineOnMessage() {
