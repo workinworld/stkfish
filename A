@@ -13,16 +13,14 @@ let currentFen = "";
 let bestMove;
 let webSocketWrapper = null;
 let gameId = null;
-let isFirstMove = true;
 let isWhite = true;
 let timeLimitMs = 50; // Time limit for engine calculations in milliseconds
 
 function initializeChessEngine() {
-    chessEngine = window.STOCKFISH();
-    // Set engine options for speed (optional, may not be supported by all versions)
-    chessEngine.postMessage("setoption name Skill Level value 10");
-    chessEngine.postMessage("setoption name Hash value 1");
-    chessEngine.postMessage("setoption name Threads value 1"); // Use only 1 thread for speed
+  chessEngine = window.STOCKFISH();
+  chessEngine.postMessage("setoption name Skill Level value 10");
+  chessEngine.postMessage("setoption name Hash value 1");
+  chessEngine.postMessage("setoption name Threads value 1");
 }
 
 function interceptWebSocket() {
@@ -48,12 +46,7 @@ function interceptWebSocket() {
                     let isWhitesTurn = message.v % 2 === 0;
                     currentFen += isWhitesTurn ? " w" : " b";
 
-                    if (isFirstMove && isWhite && isWhitesTurn) {
-                        makeFirstMove();
-                        isFirstMove = false;
-                    } else {
-                        calculateMove();
-                    }
+                    calculateMove();
                 }
 
                 if (message.type === "gameState" && message.status >= 30) {
@@ -67,31 +60,16 @@ function interceptWebSocket() {
     window.WebSocket = webSocketProxy;
 }
 
-function makeFirstMove() {
-    console.log("Making first move: Nh3");
-    webSocketWrapper.send(JSON.stringify({
-        t: "move",
-        d: { u: "nh3", b: 1, l: 10000, a: 1 }
-    }));
-}
-
 function calculateMove() {
     chessEngine.postMessage("position fen " + currentFen);
-    
-    // Set a time limit for the engine calculation
-    chessEngine.postMessage(`go depth 2 movetime ${timeLimitMs}`); // Depth 2 or Depth 3
-    // chessEngine.postMessage(`go depth 1`); // Use this for depth 1 for instant move
-
-    // You can also try using a very low depth like 1
-    // chessEngine.postMessage("go depth 1");
+    chessEngine.postMessage(`go depth 2 movetime ${timeLimitMs}`);
+    // chessEngine.postMessage(`go depth 1`); // Uncomment for depth 1 for immediate moves
 }
 
 function setupChessEngineOnMessage() {
     chessEngine.onmessage = function (event) {
         if (event && event.includes("bestmove")) {
             bestMove = event.split(" ")[1];
-
-            // Send the move immediately
             webSocketWrapper.send(JSON.stringify({
                 t: "move",
                 d: { u: bestMove, b: 1, l: 10000, a: 1 }
